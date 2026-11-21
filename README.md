@@ -24,10 +24,13 @@ Requirements:
 No package install or network access is used by the renderer:
 
 ```sh
-node main.ts
+node render.ts
 ```
 
 Output: `output/makefun-agent-needs-a-job.mp4`
+
+`main.ts` is the competition entrypoint. It deterministically copies
+`VIDEO.json` to `/output/VIDEO.json`, as the program/v1 grader requires.
 
 ## Publish checklist
 
