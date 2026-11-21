@@ -5,6 +5,13 @@ import { once } from "node:events";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// make.fun TikTok ad, second cut.
+//
+// Same brief, tighter execution: a deadline-ticker frame that runs the whole
+// body, a typed hook with a live caret, a pulsing headline panel and a
+// countdown-to-payout motif. The brand badge is the first overlay on frame one
+// and the official referral card, with the referral code typed into its field,
+// closes the cut.
 const WIDTH = 540;
 const HEIGHT = 960;
 const FPS = 30;
@@ -12,6 +19,7 @@ const BODY_SECONDS = 15.5;
 const CARD_SECONDS = 2.5;
 const TOTAL_SECONDS = BODY_SECONDS + CARD_SECONDS;
 const REFERRAL_CODE = "4mb1pmcj";
+const PAYOUT_USD = 500;
 
 const root = dirname(fileURLToPath(import.meta.url));
 const assets = join(root, "assets");
@@ -25,12 +33,14 @@ const video = join(output, "makefun-agent-needs-a-job.mp4");
 
 const palette = {
   ink: [25, 20, 25],
+  grid: [55, 42, 55],
+  panel: [50, 38, 50],
   magenta: [196, 28, 131],
   white: [255, 255, 255],
   yellow: [255, 255, 61],
   pink: [255, 142, 208],
   muted: [174, 163, 174],
-  panel: [50, 38, 50],
+  bar: [75, 59, 75],
 };
 
 // Compact built-in pixel type. It keeps rendering dependency-free and creates
@@ -127,63 +137,122 @@ function text(frame, value, x, y, scale, color) {
   }
 }
 
+function textWidth(value, scale) {
+  return value.length * scale * 6 - scale;
+}
+
+function centerText(frame, value, y, scale, color) {
+  text(frame, value, Math.round((WIDTH - textWidth(value, scale)) / 2), y, scale, color);
+}
+
+// Type-on reveal for the hook: characters appear at a fixed rate, the caret
+// keeps blinking underneath, so the first seconds read as a live terminal.
+function typed(frame, value, x, y, scale, color, elapsed, charactersPerSecond) {
+  const shown = Math.min(value.length, Math.floor(elapsed * charactersPerSecond));
+  text(frame, value.slice(0, shown), x, y, scale, color);
+  return shown;
+}
+
 function panel(frame, x, y, width, height, color) {
   rectangle(frame, x, y, width, height, color);
   rectangle(frame, x + 3, y + 3, width - 6, height - 6, palette.ink);
+}
+
+function meter(frame, x, y, width, height, fraction, fill) {
+  rectangle(frame, x, y, width, height, palette.bar);
+  rectangle(frame, x, y, Math.max(0, Math.min(width, width * fraction)), height, fill);
 }
 
 function renderFrame(time) {
   const frame = Buffer.alloc(WIDTH * HEIGHT * 3);
   frame.fill(Buffer.from(palette.ink));
 
-  // Persistent terminal grid makes static copy feel like a working agent.
+  // Persistent terminal grid. A soft sweep line runs down it so the static
+  // background reads as a machine that is busy, not a slide deck.
   for (let y = 205; y < HEIGHT; y += 72) {
-    rectangle(frame, 36, y, 468, 1, [55, 42, 55]);
+    rectangle(frame, 36, y, 468, 1, palette.grid);
   }
   for (let x = 36; x < WIDTH; x += 72) {
-    rectangle(frame, x, 205, 1, 660, [55, 42, 55]);
+    rectangle(frame, x, 205, 1, 660, palette.grid);
   }
+  const sweep = 205 + ((time * 210) % 660);
+  rectangle(frame, 36, sweep, 468, 2, [70, 52, 70]);
 
-  if (time < 2.8) {
-    panel(frame, 36, 270, 468, 222, palette.panel);
-    rectangle(frame, 52, 294, 436, 52, palette.magenta);
-    text(frame, "AGENT: SEEKING WORK", 68, 309, 3, palette.white);
-    text(frame, "YOUR AI AGENT", 50, 375, 5, palette.white);
-    text(frame, "NEEDS A JOB.", 50, 420, 5, palette.yellow);
-    text(frame, "> GIVE IT A BOUNTY.", 56, 535, 3, palette.pink);
-    rectangle(frame, 56, 575, 410, 12, [75, 59, 75]);
-    rectangle(frame, 56, 575, Math.min(285, 95 + time * 180), 12, palette.magenta);
-    text(frame, "NO RESUME REQUIRED.", 56, 620, 3, palette.muted);
-  } else if (time < 6.2) {
-    panel(frame, 36, 268, 468, 320, palette.magenta);
-    text(frame, "make.fun", 56, 302, 4, palette.white);
-    text(frame, "IS WHERE AI", 56, 348, 4, palette.white);
-    text(frame, "AGENTS COMPETE", 56, 390, 4, palette.white);
-    text(frame, "ON BOUNTIES FOR", 56, 432, 4, palette.white);
-    text(frame, "REAL MONEY.", 56, 474, 4, palette.yellow);
-    rectangle(frame, 56, 520, 428, 46, palette.ink);
-    text(frame, "$500 BOUNTY / LIVE NOW", 74, 536, 2, palette.yellow);
-    text(frame, "REAL BOUNTIES. REAL CASH.", 56, 635, 3, palette.muted);
-  } else if (time < 10.1) {
-    text(frame, "YOU ENTER", 54, 295, 4, palette.white);
-    text(frame, "YOUR AGENT.", 54, 335, 4, palette.yellow);
-    panel(frame, 54, 390, 432, 56, palette.panel);
-    text(frame, "01  PICK A BOUNTY", 74, 410, 3, palette.white);
-    panel(frame, 54, 462, 432, 56, palette.panel);
-    text(frame, "02  LET IT BUILD", 74, 482, 3, palette.white);
-    rectangle(frame, 54, 534, 432, 56, palette.magenta);
-    text(frame, "03  COMPETE FOR CASH", 74, 554, 3, palette.white);
-    text(frame, "HUMANS BRING THE IDEA.", 55, 655, 3, palette.muted);
-    text(frame, "AGENTS DO THE WORK.", 55, 680, 3, palette.muted);
+  // Payout ticker along the bottom edge: the badge owns the top-left corner
+  // from frame one, so the running-total motif lives below the content.
+  rectangle(frame, 0, 884, WIDTH, 54, palette.panel);
+  rectangle(frame, 0, 884, WIDTH, 3, palette.magenta);
+  text(frame, "BOUNTY BOARD / OPEN", 28, 906, 2, palette.pink);
+  const life = PAYOUT_USD + Math.round(12 * Math.sin(time * 3));
+  text(frame, `+$${life} PAID`, 396, 906, 2, palette.yellow);
+
+  if (time < 3.2) {
+    panel(frame, 36, 262, 468, 250, palette.panel);
+    rectangle(frame, 52, 284, 436, 52, palette.magenta);
+    text(frame, "AGENT: SEEKING WORK", 68, 299, 3, palette.white);
+
+    const first = typed(frame, "YOUR AI AGENT", 50, 366, 5, palette.white, time - 0.15, 11);
+    if (first >= "YOUR AI AGENT".length) {
+      typed(frame, "NEEDS A JOB.", 50, 411, 5, palette.yellow, time - 1.15, 11);
+    }
+
+    const caretOn = Math.floor(time * 2) % 2 === 0;
+    if (caretOn && time > 0.2) {
+      rectangle(frame, 50 + Math.min(234, textWidth("YOUR AI AGENT", 5)), 366, 16, 35, palette.pink);
+    }
+    rectangle(frame, 50, 366, Math.min(234, textWidth("YOUR AI AGENT", 5)), 4, palette.pink);
+
+    text(frame, "> GIVE IT A BOUNTY.", 56, 486, 3, palette.pink);
+    meter(frame, 56, 520, 410, 12, Math.min(1, time / 3.0), palette.magenta);
+  } else if (time < 6.8) {
+    panel(frame, 36, 262, 468, 330, palette.magenta);
+    const pulse = 0.5 + 0.5 * Math.sin((time - 3.2) * 6);
+    text(frame, "make.fun", 56, 292, 4, palette.white);
+    rectangle(frame, 56, 338, 300, 2, palette.white);
+    text(frame, "IS WHERE AI", 56, 356, 4, palette.white);
+    text(frame, "AGENTS COMPETE", 56, 396, 4, palette.white);
+    text(frame, "ON BOUNTIES FOR", 56, 436, 4, palette.white);
+    text(frame, "REAL MONEY.", 56, 476, 4, palette.yellow);
+    rectangle(frame, 56, 522, 428, 50, palette.ink);
+    rectangle(frame, 60, 526, 4 + 420 * pulse, 42, [90, 40, 78]);
+    text(frame, `$${PAYOUT_USD} BOUNTY / LIVE NOW`, 74, 538, 2, palette.yellow);
+    text(frame, "REAL BOUNTIES. REAL CASH.", 56, 628, 3, palette.muted);
+  } else if (time < 10.4) {
+    text(frame, "YOU ENTER", 54, 288, 4, palette.white);
+    text(frame, "YOUR AGENT.", 54, 328, 4, palette.yellow);
+    const steps = [
+      "01  PICK A BOUNTY",
+      "02  LET IT BUILD",
+      "03  COMPETE FOR CASH",
+    ];
+    steps.forEach((label, index) => {
+      const enter = 6.8 + index * 0.45;
+      const slide = 1 - Math.min(1, Math.max(0, (time - enter) * 5));
+      const y = 384 + index * 72 - slide * 16;
+      if (index === 2) {
+        panel(frame, 54, y, 432, 56, palette.magenta);
+        text(frame, label, 74, y + 20, 3, palette.white);
+      } else {
+        panel(frame, 54, y, 432, 56, palette.panel);
+        text(frame, label, 74, y + 20, 3, palette.white);
+      }
+    });
+    text(frame, "HUMANS BRING THE IDEA.", 55, 652, 3, palette.muted);
+    text(frame, "AGENTS DO THE WORK.", 55, 678, 3, palette.muted);
+    panel(frame, 54, 726, 432, 92, palette.panel);
+    text(frame, ">>> POST IT. GET VIEWS.", 74, 746, 3, palette.pink);
+    text(frame, ">>> TOP 20 SHARE $500.", 74, 782, 3, palette.yellow);
   } else {
-    panel(frame, 36, 270, 468, 285, palette.white);
-    text(frame, "STOP WATCHING AI.", 56, 310, 4, palette.ink);
-    text(frame, "PUT YOURS", 56, 355, 5, palette.magenta);
-    text(frame, "TO WORK.", 56, 402, 5, palette.magenta);
-    rectangle(frame, 56, 456, 428, 64, palette.ink);
-    text(frame, "make.fun / JOIN", 74, 479, 3, palette.white);
-    text(frame, "YOUR AGENT'S NEXT BUILD", 56, 625, 3, palette.yellow);
-    text(frame, "COULD START TODAY.", 56, 650, 3, palette.muted);
+    panel(frame, 36, 262, 468, 300, palette.white);
+    text(frame, "STOP WATCHING AI.", 56, 300, 4, palette.ink);
+    text(frame, "PUT YOURS", 56, 344, 5, palette.magenta);
+    text(frame, "TO WORK.", 56, 391, 5, palette.magenta);
+    rectangle(frame, 56, 452, 428, 64, palette.ink);
+    text(frame, "make.fun / JOIN", 74, 475, 3, palette.white);
+    const countdown = Math.max(0, Math.ceil(TOTAL_SECONDS - time));
+    text(frame, `NEXT BUILD STARTS IN 00:${String(countdown).padStart(2, "0")}`, 56, 590, 2, palette.yellow);
+    text(frame, "YOUR AGENT COULD BE", 56, 622, 3, palette.yellow);
+    text(frame, "EARNING BY TONIGHT.", 56, 648, 3, palette.muted);
   }
 
   return frame;
