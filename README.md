@@ -49,4 +49,4 @@ Do not buy, bot, farm, promote, or drive views from controlled accounts.
 
 ## Assets
 
-`assets/makefun-badge-9x16.png` and `assets/makefun-card-9x16-transparent.webm` are official make.fun press-kit assets. `assets/referral-code-4mb1pmcj.png` contains only the provided referral code, rendered in JetBrains Mono Bold at press-kit coordinates. `assets/JetBrainsMono-Bold.ttf` is retained for transparency and is covered by its included OFL license.
+`assets/makefun-badge-9x16.png` and `assets/makefun-card-9x16-transparent.webm` are official make.fun press-kit assets. `assets/referral-code-4mb1pmcj.png` contains only the provided referral code, rendered in JetBrains Mono Bold at press-kit coordinates. `assets/JetBrainsMono-Bold.ttf` is retained for transparency and is covered by its included OFL license. `assets/voiceover-en.m4a` is original English AI voice-over generated for this video; beat and UI-style sound effects are synthesized during rendering.

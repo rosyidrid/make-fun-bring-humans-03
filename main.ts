@@ -20,6 +20,7 @@ const temporary = join(output, ".render");
 const badge = join(assets, "makefun-badge-9x16.png");
 const endCard = join(assets, "makefun-card-9x16-transparent.webm");
 const referralCode = join(assets, `referral-code-${REFERRAL_CODE}.png`);
+const voiceover = join(assets, "voiceover-en.m4a");
 const video = join(output, "makefun-agent-needs-a-job.mp4");
 
 const palette = {
@@ -213,8 +214,9 @@ function runFfmpeg(filterPath) {
       "-loop", "1",
       "-framerate", String(FPS),
       "-i", referralCode,
+      "-i", voiceover,
       "-f", "lavfi",
-      "-i", `aevalsrc=0.024*sin(2*PI*110*t)+0.012*sin(2*PI*220*t):s=48000:d=${TOTAL_SECONDS}`,
+      "-i", `aevalsrc=0.09*sin(2*PI*56*t)*exp(-14*mod(t\\,0.5))+0.045*sin(2*PI*1760*t)*exp(-75*mod(t+0.25\\,0.5))+0.018*sin(2*PI*220*t):s=48000:d=${TOTAL_SECONDS}`,
       "-filter_complex_script", filterPath,
       "-map", "[video]",
       "-map", "[audio]",
@@ -251,10 +253,12 @@ const filters = [
   `[2:v][typed_code]overlay=0:0:enable='gte(t,1.43)':shortest=1[ending]`,
   `[blurred_tail][ending]overlay=0:0:shortest=1[ending_with_background]`,
   `[ad_with_badge][ending_with_background]concat=n=2:v=1:a=0[video]`,
-  "[4:a]afade=t=out:st=17.4:d=0.6[audio]",
+  `[4:a]aresample=48000,apad=whole_dur=${TOTAL_SECONDS},volume=1.45[voice]`,
+  "[5:a]volume=0.75[beat]",
+  `[voice][beat]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.9,afade=t=out:st=17.4:d=0.6[audio]`,
 ].join(";\n");
 
-await Promise.all([requireFile(badge), requireFile(endCard), requireFile(referralCode)]);
+await Promise.all([requireFile(badge), requireFile(endCard), requireFile(referralCode), requireFile(voiceover)]);
 await rm(temporary, { recursive: true, force: true });
 await mkdir(temporary, { recursive: true });
 await mkdir(output, { recursive: true });
